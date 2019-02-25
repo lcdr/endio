@@ -3,5 +3,11 @@ name = "endio"
 version = "0.1.0"
 authors = ["lcdr"]
 edition = "2018"
+description = "Simple and ergonomic reading/writing of binary data, with automatic endianness conversion and extendability."
+keywords = ["binary", "byte", "big-endian", "little-endian", "endian"]
+categories = ["encoding", "parsing"]
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+repository = "https://bitbucket.org/lcdr/endio/"
 
 [dependencies]
