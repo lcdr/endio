@@ -10,15 +10,17 @@
 
 	`writer.write(42u8);`.
 
-	### Automatic endianness conversion
+	### Per-object endianness specification
 
-	When working with integers consisting of multiple bytes, two kinds of byte ordering are possible, big and little endian. This crate can automatically convert integers from/to the desired endianness when they're read/written, without you having to specify the endianness for every read/write call. This works by making the endianness part of the type of the read/write implementor through different traits. This crate will never try to guess endianness, you'll always have to specify it explicitly (but only once).
+	When working with integers consisting of multiple bytes, two kinds of byte ordering are possible, big and little endian. This crate can automatically convert integers from/to the desired endianness when they're read/written, without you having to specify the endianness for every read/write call. This works by making the endianness part of the type of the read/write implementor through different traits. In most scenarios the endianness stays the same for the entirety of the I/O, so this can save a lot of typing.
 
 	You aren't bound to the specified endianness for the entirety of the I/O. If you need to work with data where the endianness changes midway through, you can explicitly override the endianness with the `_be`-/`_le` -suffixed methods.
 
 	### Entirely trait-based I/O
 
 	This crate is entirely trait-based, which means it adds zero state at runtime. All the information needed is encoded at the type level. All functionality is delegated to (de-)serialization code.
+
+	Compared to the alternative way of per-object endianness specification via a wrapper type, traits also have the advantage that they don't limit access to the specific type at all, whereas with wrappers you need to explicitly get a reference the underlying object to use it.
 
 	### Zero-cost abstractions
 
@@ -28,7 +30,7 @@
 
 	I haven't yet done any serious benchmarks, or checked the disassembly of all types and features, but these initial results look promising.
 
-	### Extendability: Reading & writing your own types
+	### Extensibility: Reading & writing your own types
 
 	You can take advantage of this crate's features and the `read`/`write` methods by implementing this crate's traits for your own types. No distinction is made between user types and types for which (de-)serialization is already provided by this crate, and you will be able to use `read` and `write` for your own types just like for primitive types.
 
@@ -42,7 +44,9 @@
 
 	(De-)serializations for Rust's primitive types are already implemented, if it makes sense to implement them. For example, `isize` and `usize` aren't implemented, since they are inherently variable-sized and therefore can't have a portable byte representation. However, the other integral and floating point types are implemented, and if you just want to read/write some simple primitive types, using the `read`/`write` methods will Just Work™.
 
-	See the examples below for some typical I/O using this crate.
+	## Comparison to other crates
+
+	Binary I/O and endianness conversion are common problems, and a number of crates providing solutions already exist. [See here for how they compare to this crate](https://bitbucket.org/lcdr/endio/src/tip/Comparison.md).
 
 	## Examples
 

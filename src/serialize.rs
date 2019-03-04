@@ -12,7 +12,13 @@ use crate::{BigEndian, Endianness, EWrite, LittleEndian};
 
 	Note how the trait bound for `W` is `EWrite<E>`, as we want to use the functionality of this crate to delegate serialization to the struct's fields.
 
-	Note: Rust currently can't recognize sealed traits, so even though the primitive types are implemented, you may need to write `where` clauses like below for this to work. If/When the compiler gets smarter about sealed traits this won't be necessary.
+	Note: As you can see below, you may need to write `where` clauses when delegating functionality to other `write` operations. There are two reasons for this:
+
+	- Rust currently can't recognize sealed traits. Even though there are only two endiannesses, and the primitive types are implemented for them, the compiler can't recognize that. If/When the compiler gets smarter about sealed traits this will be resolved. Alternatively, once Rust gets support for specialization, I will be able to add a dummy blanket `impl` to primitives which will work around this issue.
+
+	- The underlying `W` type needs to implement `std::io::Write` to be able to write primitive types. You can work around this by explicitly specifying `Write` as trait bound, but since both `Write` and `EWrite` have a `write` method, Rust will force you to use UFCS syntax to disambiguate between them. This makes using `write` less ergonomic, and I personally think that `where` clauses are the better alternative here, since they avoid this issue.
+
+		Ideally I'd like to make `std::io::Write` a supertrait of `EWrite`, since the serialization will normally depend on `Write` anyway. Unfortunately, supertraits' methods automatically get brought into scope, so this would mean that you would be forced to use UFCS every time, without being able to work around them with `where` clauses. ([Rust issue #17151](https://github.com/rust-lang/rust/issues/17151)).
 	```
 	struct Example {
 		a: u8,

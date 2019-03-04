@@ -14,7 +14,13 @@ use crate::{BigEndian, ERead, Endianness, LittleEndian};
 
 	Note how the trait bound for `R` is `ERead<E>`, as we want to use the functionality of this crate to delegate deserialization to the struct's fields.
 
-	Note: Rust currently can't recognize sealed traits, so even though the primitive types are implemented, you may need to write `where` clauses like below for this to work. If/When the compiler gets smarter about sealed traits this won't be necessary.
+	Note: As you can see below, you may need to write `where` clauses when delegating functionality to other `read` operations. There are two reasons for this:
+
+	- Rust currently can't recognize sealed traits. Even though there are only two endiannesses, and the primitive types are implemented for them, the compiler can't recognize that. If/When the compiler gets smarter about sealed traits this will be resolved. Alternatively, once Rust gets support for specialization, I will be able to add a dummy blanket `impl` to primitives which will work around this issue.
+
+	- The underlying `R` type needs to implement `std::io::Read` to be able to read into primitive types. You can work around this by explicitly specifying `Read` as trait bound, but since both `Read` and `ERead` have a `read` method, Rust will force you to use UFCS syntax to disambiguate between them. This makes using `read` less ergonomic, and I personally think that `where` clauses are the better alternative here, since they avoid this issue.
+
+		Ideally I'd like to make `std::io::Read` a supertrait of `ERead`, since the deserialization will normally depend on `Read` anyway. Unfortunately, supertraits' methods automatically get brought into scope, so this would mean that you would be forced to use UFCS every time, without being able to work around them with `where` clauses. ([Rust issue #17151](https://github.com/rust-lang/rust/issues/17151)).
 	```
 	# #[derive(Debug, PartialEq)]
 	struct Example {
