@@ -143,9 +143,9 @@ Not included are:
 | `endio`         | ✅          | ✅             | ✅       | ✅       |
 | `byteorder`     | ✅          | ✅             | ✅       | ✅       |
 | `endianrw`      | ✅          | ✅             | ✅       | ✅       |
-| `little-endian` | ❎          | ✅             | ✅       | ✅       |
+| `little-endian` | ❌          | ✅             | ✅       | ✅       |
 | `endian`        | ✅          | ✅             | ✅       | ✅       |
-| `endianness`    | ✅          | ✅             | ✅       | ❎       |
+| `endianness`    | ✅          | ✅             | ✅       | ❌       |
 
 ## I/O object type
 
@@ -163,11 +163,11 @@ Not included are:
 | crate           | {u, i}{16, 32, 64} | {u, i}8 | {u, i}128 | f32, f64 | bool | user types |
 |-----------------|--------------------|---------|-----------|----------|------|------------|
 | `endio`         | ✅                  | ✅       | ✅         | ✅        | ✅    | ✅          |
-| `byteorder`     | ✅                  | ❎       | ✅         | ✅        | ❎    | ❎          |
-| `endianrw`      | ✅                  | ✅       | ❎         | ✅        | ❎    | (✅)        |
-| `little-endian` | ✅                  | ✅       | ✅         | ❎        | ❎    | (✅)        |
-| `endian`        | ✅                  | ❎       | ❎         | ❎        | ❎    | (✅)        |
-| `endianness`    | ✅                  | ❎       | ❎         | ✅        | ❎    | ❎          |
+| `byteorder`     | ✅                  | ❌       | ✅         | ✅        | ❌    | ❌          |
+| `endianrw`      | ✅                  | ✅       | ❌         | ✅        | ❌    | (✅)        |
+| `little-endian` | ✅                  | ✅       | ✅         | ❌        | ❌    | (✅)        |
+| `endian`        | ✅                  | ❌       | ❌         | ❌        | ❌    | (✅)        |
+| `endianness`    | ✅                  | ❌       | ❌         | ✅        | ❌    | ❌          |
 
 (✅) = Not intended by the author, but the interface could be used to implement user types to some extent
 
@@ -178,6 +178,6 @@ Not included are:
 | `endio`         | per operation, per object | return type        |
 | `byteorder`     | per operation             | suffix             |
 | `endianrw`      | per operation             | type parameter     |
-| `little-endian` | ❎                         | trait on type      |
+| `little-endian` | ❌                         | trait on type      |
 | `endian`        | per operation             | trait on type      |
 | `endianness`    | per operation             | suffix             |
