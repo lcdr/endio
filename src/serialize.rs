@@ -110,17 +110,21 @@ pub trait Serialize<E: Endianness, W> {
 	fn serialize(self, writer: &mut W) -> Res<()>;
 }
 
-/// Writes the entire contents of the byte slice. Equivalent to `std::io::Write::write_all`.
-impl<E: Endianness, W: Write> Serialize<E, W> for &[u8] {
+// todo[specialization]: specialize for &[u8] (std::io::Write::write_all)
+/// Writes the entire contents of the byte slice.
+impl<E: Endianness, W: EWrite<E>, S: Copy+Serialize<E, W>> Serialize<E, W> for &[S] {
 	fn serialize(self, writer: &mut W) -> Res<()> {
-		writer.write_all(self)
+		for elem in self {
+			writer.write(*elem)?;
+		}
+		Ok(())
 	}
 }
 
-/// Writes the entire contents of the Vec<u8>.
-impl<E: Endianness, W: Write> Serialize<E, W> for &Vec<u8> {
+/// Writes the entire contents of the Vec.
+impl<E: Endianness, W: EWrite<E>, S: Copy+Serialize<E, W>> Serialize<E, W> for &Vec<S> {
 	fn serialize(self, writer: &mut W) -> Res<()> {
-		writer.write_all(&self[..])
+		writer.write(self.as_slice())
 	}
 }
 
@@ -207,6 +211,24 @@ impl<E: Endianness, W: EWrite<E>> Serialize<E, W> for f64 where u64: Serialize<E
 #[cfg(test)]
 mod tests {
 	use std::io::Result as Res;
+
+	#[test]
+	fn write_slice() {
+		let data = b"\xba\xad\xba\xad";
+		use crate::LEWrite;
+		let mut writer = vec![];
+		writer.write(&[0xadbau16, 0xadbau16][..]).unwrap();
+		assert_eq!(writer, data);
+	}
+
+	#[test]
+	fn write_vec() {
+		let data = b"\xba\xad\xba\xad";
+		use crate::LEWrite;
+		let mut writer = vec![];
+		writer.write(&vec![0xadbau16, 0xadbau16]).unwrap();
+		assert_eq!(writer, data);
+	}
 
 	#[test]
 	fn write_bool_false() {
