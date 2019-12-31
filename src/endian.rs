@@ -23,6 +23,9 @@ pub struct LittleEndian;
 impl Endianness for BigEndian {}
 impl Endianness for LittleEndian {}
 
+pub type BE = BigEndian;
+pub type LE = LittleEndian;
+
 // ensures no one else implements the trait
 mod private {
 	pub trait Sealed {}
