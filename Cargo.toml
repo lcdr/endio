@@ -8,6 +8,6 @@ keywords = ["binary", "byte", "big-endian", "little-endian", "endian"]
 categories = ["encoding", "parsing"]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-repository = "https://bitbucket.org/lcdr/endio/"
+repository = "https://github.com/lcdr/endio/"
 
 [dependencies]

@@ -48,7 +48,7 @@ If you were using raw `std::io::{Read, Write}` with manual (de-)serialization co
 
 ## Comparison to other crates
 
-Binary I/O and endianness conversion are common problems, and a number of crates providing solutions already exist. [See here for how they compare to this crate](https://bitbucket.org/lcdr/endio/src/tip/Comparison.md).
+Binary I/O and endianness conversion are common problems, and a number of crates providing solutions already exist. [See here for how they compare to this crate](https://github.com/lcdr/endio/blob/master/Comparison.md).
 
 ## Examples
 
