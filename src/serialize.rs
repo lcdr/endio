@@ -1,12 +1,161 @@
 use std::io::Result as Res;
 use std::io::Write;
+use std::net::Ipv4Addr;
 
-use crate::{BigEndian, Endianness, EWrite, LittleEndian};
+use crate::{BEWrite, BigEndian, Endianness, EWrite, LEWrite, LittleEndian};
 
 /**
 	Implement this for your types to be able to `write` them.
 
+	## Derive macro for common serializations
+
+	A common case is the following: You want to make your struct serializable. Your struct's fields are all serializable themselves. You want to simply serialize everything in order, and then construct a struct instance from that.
+
+	If that's all you want, simply `#[derive(Serialize)]` and you're good to go.
+
 	## Examples
+
+	### Serialize a struct:
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Serialize;
+	#[derive(Serialize)]
+	struct Example {
+		a: u16,
+		b: bool,
+		c: u32,
+	}
+	# {
+	use endio::LEWrite;
+	let mut writer = vec![];
+	writer.write(&Example { a: 0xadba, b: true, c: 0x0df0adba }).unwrap();
+	assert_eq!(writer, b"\xba\xad\x01\xba\xad\xf0\x0d");
+	# }
+	# {
+	# use endio::BEWrite;
+	# let mut writer = vec![];
+	# writer.write(&Example { a: 0xbaad, b: true, c: 0xbaadf00d }).unwrap();
+	# assert_eq!(writer, b"\xba\xad\x01\xba\xad\xf0\x0d");
+	# }
+	# }
+	```
+
+	This also works with tuple structs:
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Serialize;
+	#[derive(Serialize)]
+	struct Example(u16, bool, u32);
+	# {
+	# use endio::LEWrite;
+	# let mut writer = vec![];
+	# writer.write(&Example(0xadba, true, 0x0df0adba)).unwrap();
+	# assert_eq!(writer, b"\xba\xad\x01\xba\xad\xf0\x0d");
+	# }
+	# {
+	# use endio::BEWrite;
+	# let mut writer = vec![];
+	# writer.write(&Example(0xbaad, true, 0xbaadf00d)).unwrap();
+	# assert_eq!(writer, b"\xba\xad\x01\xba\xad\xf0\x0d");
+	# }
+	# }
+	```
+
+	and unit structs:
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Serialize;
+	#[derive(Serialize)]
+	struct Example;
+
+	# {
+	# use endio::LEWrite;
+	# let mut writer = vec![];
+	# writer.write(&Example).unwrap();
+	# assert_eq!(writer, b"");
+	# }
+	# {
+	# use endio::BEWrite;
+	# let mut writer = vec![];
+	# writer.write(&Example).unwrap();
+	# assert_eq!(writer, b"");
+	# }
+	# }
+	```
+
+	### Serialize an enum:
+
+	The derive macro also works with enums, however you will have to explicitly specify the type of the discriminant by adding a repr attribute with an int type argument to the enum.
+
+	The derive macro works even without explicitly specified discriminant values and with variants carrying data. Nightly Rust also supports the combination of both under [`#![feature(arbitrary_enum_discriminant)]`](https://github.com/rust-lang/rust/issues/60553).
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Serialize;
+	#[derive(Serialize)]
+	#[repr(u16)]
+	enum Example {
+		A,
+		B,
+		C = 42,
+		D,
+	}
+	# {
+	use endio::LEWrite;
+	let mut writer = vec![];
+	writer.write(&Example::A).unwrap();
+	assert_eq!(writer, b"\x00\x00");
+	# writer.write(&Example::B).unwrap();
+	# writer.write(&Example::C).unwrap();
+	# writer.write(&Example::D).unwrap();
+	# assert_eq!(writer, b"\x00\x00\x01\x00\x2a\x00\x2b\x00");
+	# }
+	# {
+	# use endio::BEWrite;
+	# let mut writer = vec![];
+	# writer.write(&Example::A).unwrap();
+	# assert_eq!(writer, b"\x00\x00");
+	# writer.write(&Example::B).unwrap();
+	# writer.write(&Example::C).unwrap();
+	# writer.write(&Example::D).unwrap();
+	# assert_eq!(writer, b"\x00\x00\x00\x01\x00\x2a\x00\x2b");
+	# }
+	# }
+	```
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Serialize;
+	#[derive(Serialize)]
+	#[repr(u16)]
+	enum Example {
+		A,
+		B(u8),
+		C { a: u16, b: bool, c: u32 },
+		D(u32),
+	}
+	# {
+	use endio::LEWrite;
+	let mut writer = vec![];
+	writer.write(&Example::C { a: 0xadba, b: true, c: 0x0df0adba }).unwrap();
+	assert_eq!(writer, b"\x02\x00\xba\xad\x01\xba\xad\xf0\x0d");
+	# }
+	# {
+	# use endio::BEWrite;
+	# let mut writer = vec![];
+	# writer.write(&Example::C { a: 0xbaad, b: true, c: 0xbaadf00d }).unwrap();
+	# assert_eq!(writer, b"\x00\x02\xba\xad\x01\xba\xad\xf0\x0d");
+	# }
+	# }
+	```
+
+	## Custom serializations
+
+	If your serialization is complex or has special cases, you'll need to implement `Serialize` manually.
+
+	### Examples
 
 	### Serialize a struct:
 
@@ -25,31 +174,29 @@ use crate::{BigEndian, Endianness, EWrite, LittleEndian};
 		b: bool,
 		c: u32,
 	}
-	{
-		use std::io::Result;
-		use endio::{Endianness, EWrite, Serialize};
+	# {
+	use std::io::Result;
+	use endio::{Endianness, EWrite, Serialize};
 
-		impl<E: Endianness, W: EWrite<E>> Serialize<E, W> for &Example
-			where u8  : Serialize<E, W>,
-			      bool: Serialize<E, W>,
-			      u32 : Serialize<E, W> {
-			fn serialize(self, writer: &mut W) -> Result<()> {
-				writer.write(self.a)?;
-				writer.write(self.b)?;
-				writer.write(self.c)
-			}
+	impl<E: Endianness, W: EWrite<E>> Serialize<E, W> for &Example
+		where u8  : Serialize<E, W>,
+		      bool: Serialize<E, W>,
+		      u32 : Serialize<E, W> {
+		fn serialize(self, writer: &mut W) -> Result<()> {
+			writer.write(self.a)?;
+			writer.write(self.b)?;
+			writer.write(self.c)
 		}
 	}
+	# }
 	// will then allow you to directly write:
-	{
-		use endio::LEWrite;
-
-		let mut writer = vec![];
-		let e = Example { a: 42, b: true, c: 754187983 };
-		writer.write(&e);
-
-		assert_eq!(writer, b"\x2a\x01\xcf\xfe\xf3\x2c");
-	}
+	# {
+	use endio::LEWrite;
+	let mut writer = vec![];
+	let e = Example { a: 42, b: true, c: 754187983 };
+	writer.write(&e);
+	assert_eq!(writer, b"\x2a\x01\xcf\xfe\xf3\x2c");
+	# }
 	# {
 	# 	use endio::BEWrite;
 	# 	let mut writer = vec![];
@@ -104,7 +251,6 @@ use crate::{BigEndian, Endianness, EWrite, LittleEndian};
 	}
 	```
 */
-
 pub trait Serialize<E: Endianness, W> {
 	/// Serializes the type by writing to the writer.
 	fn serialize(self, writer: &mut W) -> Res<()>;
@@ -112,38 +258,34 @@ pub trait Serialize<E: Endianness, W> {
 
 // todo[specialization]: specialize for &[u8] (std::io::Write::write_all)
 /// Writes the entire contents of the byte slice.
-impl<E: Endianness, W: EWrite<E>, S: Copy+Serialize<E, W>> Serialize<E, W> for &[S] {
+impl<E: Endianness, W: EWrite<E>, S> Serialize<E, W> for &[S] where for<'a> &'a S: Serialize<E, W> {
 	fn serialize(self, writer: &mut W) -> Res<()> {
 		for elem in self {
-			writer.write(*elem)?;
+			writer.write(elem)?;
 		}
 		Ok(())
 	}
 }
 
 /// Writes the entire contents of the Vec.
-impl<E: Endianness, W: EWrite<E>, S: Copy+Serialize<E, W>> Serialize<E, W> for &Vec<S> {
+impl<E: Endianness, W: EWrite<E>, S> Serialize<E, W> for &Vec<S> where for<'a> &'a S: Serialize<E, W> {
 	fn serialize(self, writer: &mut W) -> Res<()> {
 		writer.write(self.as_slice())
 	}
 }
 
-/// Writes a bool by writing a byte.
-impl<E: Endianness, W: Write> Serialize<E, W> for bool {
-	fn serialize(self, writer: &mut W) -> Res<()> {
-		writer.write_all(&(self as u8).to_ne_bytes())
-	}
-}
-
-impl<E: Endianness, W: Write> Serialize<E, W> for u8 {
-	fn serialize(self, writer: &mut W) -> Res<()> {
-		writer.write_all(&self.to_ne_bytes())
-	}
-}
-
-impl<E: Endianness, W: Write> Serialize<E, W> for i8 {
-	fn serialize(self, writer: &mut W) -> Res<()> {
-		writer.write_all(&self.to_ne_bytes())
+macro_rules! impl_ref {
+	($t:ident) => {
+		impl<W: Write+BEWrite> Serialize<BigEndian, W> for &$t {
+			fn serialize(self, writer: &mut W) -> Res<()> {
+				BEWrite::write(writer, *self)
+			}
+		}
+		impl<W: Write+LEWrite> Serialize<LittleEndian, W> for &$t {
+			fn serialize(self, writer: &mut W) -> Res<()> {
+				LEWrite::write(writer, *self)
+			}
+		}
 	}
 }
 
@@ -160,6 +302,8 @@ macro_rules! impl_int {
 				writer.write_all(&self.to_le_bytes())
 			}
 		}
+
+		impl_ref!($t);
 
 		#[cfg(test)]
 		mod $t {
@@ -187,10 +331,12 @@ macro_rules! impl_int {
 	}
 }
 
+impl_int!(u8);
 impl_int!(u16);
 impl_int!(u32);
 impl_int!(u64);
 impl_int!(u128);
+impl_int!(i8);
 impl_int!(i16);
 impl_int!(i32);
 impl_int!(i64);
@@ -201,12 +347,29 @@ impl<E: Endianness, W: EWrite<E>> Serialize<E, W> for f32 where u32: Serialize<E
 		writer.write(self.to_bits())
 	}
 }
+impl_ref!(f32);
 
 impl<E: Endianness, W: EWrite<E>> Serialize<E, W> for f64 where u64: Serialize<E, W> {
 	fn serialize(self, writer: &mut W) -> Res<()> {
 		writer.write(self.to_bits())
 	}
 }
+impl_ref!(f64);
+
+/// Writes a bool by writing a byte.
+impl<E: Endianness, W: Write> Serialize<E, W> for bool {
+	fn serialize(self, writer: &mut W) -> Res<()> {
+		writer.write_all(&(self as u8).to_ne_bytes())
+	}
+}
+impl_ref!(bool);
+
+impl<E: Endianness, W: Write> Serialize<E, W> for Ipv4Addr {
+	fn serialize(self, writer: &mut W) -> Res<()>	{
+		writer.write_all(&self.octets()[..])
+	}
+}
+impl_ref!(Ipv4Addr);
 
 #[cfg(test)]
 mod tests {
@@ -332,6 +495,25 @@ mod tests {
 			use crate::LEWrite;
 			let mut writer = vec![];
 			writer.write(1337.4199999955163f64).unwrap();
+			assert_eq!(writer, data);
+		}
+	}
+
+	#[test]
+	fn write_ipv4_addr() {
+		use std::net::Ipv4Addr;
+
+		let data = b"\x7f\x00\x00\x01";
+		{
+			use crate::BEWrite;
+			let mut writer = vec![];
+			writer.write(Ipv4Addr::LOCALHOST).unwrap();
+			assert_eq!(writer, data);
+		}
+		{
+			use crate::LEWrite;
+			let mut writer = vec![];
+			writer.write(Ipv4Addr::LOCALHOST).unwrap();
 			assert_eq!(writer, data);
 		}
 	}

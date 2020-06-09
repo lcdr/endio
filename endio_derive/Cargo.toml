@@ -1,19 +1,19 @@
 [package]
-name = "endio"
+name = "endio_derive"
 version = "0.2.0"
 authors = ["lcdr"]
 edition = "2018"
-description = "Simple reading & writing of binary data, extensible and ergonomic."
+description = "Derive macros for endio."
 keywords = ["binary", "byte", "serialization", "deserialization", "endian"]
 categories = ["encoding", "parsing"]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/lcdr/endio/"
 
+[lib]
+proc-macro = true
+
 [dependencies]
-endio_derive = { path = "endio_derive", optional = true }
-
-[features]
-default = ["derive"]
-
-derive = ["endio_derive"]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "1.0"

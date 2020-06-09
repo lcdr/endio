@@ -34,6 +34,8 @@
 
 	You can take advantage of this crate's features and the `read`/`write` methods by implementing this crate's traits for your own types. No distinction is made between user types and types for which (de-)serialization is already provided by this crate, and you will be able to use `read` and `write` for your own types just like for primitive types.
 
+	This crate includes `derive` macros for common cases, so most of the time you won't have to write the implementations yourself.
+
 	You can write (de-)serializations that differ depending on endianness, or (de-)serializations that don't differentiate and instead use the automatic endian inference of this crate to delegate endian differentiation to sub-structs.
 
 	You're not limited to `std::io::{Read, Write}` or this crate's abstractions when writing (de-)serializations, you can also use other functionality through appropriate trait bounds. For example, it's also possible to write a (de-)serialization that uses `std::io::Seek` in its code.
@@ -46,15 +48,15 @@
 
 	## Comparison to other crates
 
-	Binary I/O and endianness conversion are common problems, and a number of crates providing solutions already exist. [See here for how they compare to this crate](https://bitbucket.org/lcdr/endio/src/tip/Comparison.md).
+	Binary I/O and endianness conversion are common problems, and a number of crates providing solutions already exist. [See here for how they compare to this crate](https://github.com/lcdr/endio/blob/master/Comparison.md).
 
 	## Examples
 
-	Here are two typical ways to use this crate:
+	Here are some typical ways to use this crate:
 
 	### Read data from bytes in memory, in little endian:
 
-	```
+	```rust
 	// This will make the read calls use little endian.
 	use endio::LERead;
 
@@ -73,7 +75,7 @@
 
 	### Write data to a vector of bytes, in big endian:
 
-	```
+	```rust
 	// This time we'll use big endian.
 	use endio::BEWrite;
 
@@ -86,6 +88,28 @@
 
 	// Done!
 	assert_eq!(writer, b"\x2a\x01\xcf\xfe\xf3\x2c");
+	```
+
+	### Directly read a custom type:
+
+	```rust
+	# #[cfg(feature="derive")] {
+	use endio::Deserialize;
+
+	// The derive macro takes care of the implementation code.
+	#[derive(Deserialize)]
+	struct Example {
+		a: u16,
+		b: bool,
+		c: u32,
+	}
+
+	// The macro has implemented both LE and BE, we'll choose one of them here.
+	use endio::LERead;
+	let mut reader = &b"\xba\xad\x01\xba\xad\xf0\x0d"[..];
+	let val: Example = reader.read().unwrap();
+	assert!(matches!(val, Example { a: 0xadba, b: true, c: 0x0df0adba }));
+	# }
 	```
 
 	More examples and explanations on how this crate works are included in the documentation of the interfaces.
@@ -109,3 +133,7 @@ pub use self::read::*;
 pub use self::write::*;
 pub use self::deserialize::*;
 pub use self::serialize::*;
+
+#[cfg(feature="derive")]
+pub use endio_derive::*;
+

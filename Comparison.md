@@ -66,12 +66,10 @@ let vector = Vector3(x, y, z);
 #### `endio`
 
 ```rust
-use endio::LERead;
+use endio::{Deserialize, LERead};
 
+#[derive(Deserialize)]
 struct Vector3(f32, f32, f32);
-
-// Implement `endio::Deserialize` for `Vector3`
-// Left out here to focus on end result
 
 let mut reader = &b"<binary content>"[..];
 

@@ -8,7 +8,7 @@ use crate::{BigEndian, Deserialize, Endianness, LittleEndian};
 
 	Interface for reading data with a specified endianness. Use this interface to make deserializations automatically switch endianness without having to write the same code twice.
 
-	In theory this would be the only write trait and BE-/LERead would be aliases to the BE/LE type parameter variants, but for some reason that doesn't import methods in `use` notation.
+	In theory this would be the only read trait and BE-/LERead would be aliases to the BE/LE type parameter variants, but trait aliases aren't stable yet.
 
 	## Examples
 
@@ -24,7 +24,7 @@ use crate::{BigEndian, Deserialize, Endianness, LittleEndian};
 	assert_eq!(c, 754187983);
 	```
 */
-pub trait ERead<E: Endianness>: Sized {
+pub trait ERead<E: Endianness>: Sized { // todo[supertrait item shadowing]: make Read a supertrait of this
 	/**
 		Reads a `Deserialize` from the reader, in the reader's endianness.
 
@@ -36,6 +36,8 @@ pub trait ERead<E: Endianness>: Sized {
 	/// Reads in forced little endian.
 	fn read_le<D: Deserialize<LittleEndian, Self>>(&mut self) -> Res<D> { D::deserialize(self) }
 }
+
+// todo[trait aliases]: make these aliases of ERead
 
 /**
 	Use this to `read` in **big** endian.
@@ -73,7 +75,7 @@ mod tests {
 
 	#[test]
 	fn read_be_forced() {
-		use super::LERead;
+		use crate::LERead;
 		let mut reader = &DATA[..];
 		let val: u16 = reader.read_be().unwrap();
 		assert_eq!(val, 0xbaad);

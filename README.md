@@ -36,6 +36,8 @@ I haven't yet done any serious benchmarks, or checked the disassembly of all typ
 
 You can take advantage of this crate's features and the `read`/`write` methods by implementing this crate's traits for your own types. No distinction is made between user types and types for which (de-)serialization is already provided by this crate, and you will be able to use `read` and `write` for your own types just like for primitive types.
 
+This crate includes `derive` macros for common cases, so most of the time you won't have to write the implementations yourself.
+
 You can write (de-)serializations that differ depending on endianness, or (de-)serializations that don't differentiate and instead use the automatic endian inference of this crate to delegate endian differentiation to sub-structs.
 
 You're not limited to `std::io::{Read, Write}` or this crate's abstractions when writing (de-)serializations, you can also use other functionality through appropriate trait bounds. For example, it's also possible to write a (de-)serialization that uses `std::io::Seek` in its code.
@@ -52,7 +54,7 @@ Binary I/O and endianness conversion are common problems, and a number of crates
 
 ## Examples
 
-Here are two typical ways to use this crate:
+Here are some typical ways to use this crate:
 
 ### Read data from bytes in memory, in little endian:
 
@@ -88,6 +90,28 @@ writer.write_le(754187983);  // The trait endianness can be overwritten if neces
 
 // Done!
 assert_eq!(writer, b"\x2a\x01\xcf\xfe\xf3\x2c");
+```
+
+### Directly read a custom type:
+
+```rust
+# #[cfg(feature="derive")] {
+use endio::Deserialize;
+
+// The derive macro takes care of the implementation code.
+#[derive(Deserialize)]
+struct Example {
+	a: u16,
+	b: bool,
+	c: u32,
+}
+
+// The macro has implemented both LE and BE, we'll choose one of them here.
+use endio::LERead;
+let mut reader = &b"\xba\xad\x01\xba\xad\xf0\x0d"[..];
+let val: Example = reader.read().unwrap();
+assert!(matches!(val, Example { a: 0xadba, b: true, c: 0x0df0adba }));
+# }
 ```
 
 More examples and explanations on how this crate works are included in the documentation of the interfaces.

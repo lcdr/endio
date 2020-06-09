@@ -2,13 +2,166 @@ use std::io;
 use std::io::Read;
 use std::io::Result as Res;
 use std::mem::size_of;
+use std::net::Ipv4Addr;
 
 use crate::{BigEndian, ERead, Endianness, LittleEndian};
 
 /**
 	Implement this for your types to be able to `read` them.
 
-	## Examples
+	## Derive macro for common deserializations
+
+	A common case is the following: You want to make your struct deserializable. Your struct's fields are all deserializable themselves. You want to simply deserialize everything in order, and then construct a struct instance from that.
+
+	If that's all you want, simply `#[derive(Deserialize)]` and you're good to go.
+
+	### Examples
+
+	### Deserialize a struct:
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Deserialize;
+	#[derive(Deserialize)]
+	struct Example {
+		a: u16,
+		b: bool,
+		c: u32,
+	}
+	# {
+	use endio::LERead;
+	let mut reader = &b"\xba\xad\x01\xba\xad\xf0\x0d"[..];
+	let val: Example = reader.read().unwrap();
+	assert!(matches!(val, Example { a: 0xadba, b: true, c: 0x0df0adba }));
+	# }
+	# {
+	# use endio::BERead;
+	# let mut reader = &b"\xba\xad\x01\xba\xad\xf0\x0d"[..];
+	# let val: Example = reader.read().unwrap();
+	# assert!(matches!(val, Example { a: 0xbaad, b: true, c: 0xbaadf00d }));
+	# }
+	# }
+	```
+
+	This also works with tuple structs:
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Deserialize;
+	#[derive(Deserialize)]
+	struct Example(u16, bool, u32);
+	# {
+	# use endio::LERead;
+	# let mut reader = &b"\xba\xad\x01\xba\xad\xf0\x0d"[..];
+	# let val: Example = reader.read().unwrap();
+	# assert!(matches!(val, Example(0xadba, true, 0x0df0adba)));
+	# }
+	# {
+	# use endio::BERead;
+	# let mut reader = &b"\xba\xad\x01\xba\xad\xf0\x0d"[..];
+	# let val: Example = reader.read().unwrap();
+	# assert!(matches!(val, Example(0xbaad, true, 0xbaadf00d)));
+	# }
+	# }
+	```
+
+	and unit structs:
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Deserialize;
+	#[derive(Deserialize)]
+	struct Example;
+
+	# {
+	# use endio::LERead;
+	# let mut reader = &b""[..];
+	# let _: Example = reader.read().unwrap();
+	# }
+	# {
+	# use endio::BERead;
+	# let mut reader = &b""[..];
+	# let _: Example = reader.read().unwrap();
+	# }
+	# }
+	```
+
+	### Deserialize an enum:
+
+	The derive macro also works with enums, however you will have to explicitly specify the type of the discriminant by adding a repr attribute with an int type argument to the enum.
+
+	The derive macro works even without explicitly specified discriminant values and with variants carrying data. Nightly Rust also supports the combination of both under [`#![feature(arbitrary_enum_discriminant)]`](https://github.com/rust-lang/rust/issues/60553).
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Deserialize;
+	#[derive(Deserialize)]
+	#[repr(u16)]
+	enum Example {
+		A,
+		B,
+		C = 42,
+		D,
+	}
+	# {
+	use endio::LERead;
+	let mut reader = &b"\x00\x00\x01\x00\x2a\x00\x2b\x00\x2c\x00"[..];
+	let a: Example = reader.read().unwrap();
+	# let b: Example = reader.read().unwrap();
+	# let c: Example = reader.read().unwrap();
+	# let d: Example = reader.read().unwrap();
+	# assert!(reader.read::<Example>().is_err());
+	assert!(matches!(a, Example::A));
+	# assert!(matches!(b, Example::B));
+	# assert!(matches!(c, Example::C));
+	# assert!(matches!(d, Example::D));
+	# }
+	# {
+	# use endio::BERead;
+	# let mut reader = &b"\x00\x00\x00\x01\x00\x2a\x00\x2b\x00\x2c"[..];
+	# let a: Example = reader.read().unwrap();
+	# let b: Example = reader.read().unwrap();
+	# let c: Example = reader.read().unwrap();
+	# let d: Example = reader.read().unwrap();
+	# assert!(reader.read::<Example>().is_err());
+	# assert!(matches!(a, Example::A));
+	# assert!(matches!(b, Example::B));
+	# assert!(matches!(c, Example::C));
+	# assert!(matches!(d, Example::D));
+	# }
+	# }
+	```
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Deserialize;
+	#[derive(Deserialize)]
+	#[repr(u16)]
+	enum Example {
+		A,
+		B(u8),
+		C { a: u16, b: bool, c: u32 },
+		D(u32),
+	}
+	# {
+	use endio::LERead;
+	let mut reader = &b"\x02\x00\xba\xad\x01\xba\xad\xf0\x0d"[..];
+	let val: Example = reader.read().unwrap();
+	assert!(matches!(val, Example::C { a: 0xadba, b: true, c: 0x0df0adba }));
+	# }
+	# {
+	# use endio::BERead;
+	# let mut reader = &b"\x00\x02\xba\xad\x01\xba\xad\xf0\x0d"[..];
+	# let val: Example = reader.read().unwrap();
+	# assert!(matches!(val, Example::C { a: 0xbaad, b: true, c: 0xbaadf00d }));
+	# }
+	# }
+	```
+
+	## Custom deserializations
+
+	If your deserialization is complex or has special cases, you'll need to implement `Deserialize` manually.
+
+	### Examples
 
 	### Deserialize a struct:
 
@@ -22,42 +175,39 @@ use crate::{BigEndian, ERead, Endianness, LittleEndian};
 
 		Ideally I'd like to make `std::io::Read` a supertrait of `ERead`, since the deserialization will normally depend on `Read` anyway. Unfortunately, supertraits' methods automatically get brought into scope, so this would mean that you would be forced to use UFCS every time, without being able to work around them with `where` clauses. ([Rust issue #17151](https://github.com/rust-lang/rust/issues/17151)).
 	```
-	# #[derive(Debug, PartialEq)]
 	struct Example {
 		a: u8,
 		b: bool,
 		c: u32,
 	}
-	{
-		use std::io::Result;
-		use endio::{Deserialize, Endianness, ERead};
+	# {
+	use std::io::Result;
+	use endio::{Deserialize, Endianness, ERead};
 
-		impl<E: Endianness, R: ERead<E>> Deserialize<E, R> for Example
-			where bool: Deserialize<E, R>,
-			      u8  : Deserialize<E, R>,
-			      u32 : Deserialize<E, R> {
-			fn deserialize(reader: &mut R) -> Result<Self> {
-				let a = reader.read()?;
-				let b = reader.read()?;
-				let c = reader.read()?;
-				Ok(Example { a, b, c })
-			}
+	impl<E: Endianness, R: ERead<E>> Deserialize<E, R> for Example
+		where bool: Deserialize<E, R>,
+		      u8  : Deserialize<E, R>,
+		      u32 : Deserialize<E, R> {
+		fn deserialize(reader: &mut R) -> Result<Self> {
+			let a = reader.read()?;
+			let b = reader.read()?;
+			let c = reader.read()?;
+			Ok(Example { a, b, c })
 		}
 	}
+	# }
 	// will then allow you to directly write:
-	{
-		use endio::LERead;
-		let mut reader = &b"\x2a\x01\xcf\xfe\xf3\x2c"[..];
-		let e: Example = reader.read().unwrap();
-
-		assert_eq!(e, Example { a: 42, b: true, c: 754187983 });
-	}
+	# {
+	use endio::LERead;
+	let mut reader = &b"\x2a\x01\xcf\xfe\xf3\x2c"[..];
+	let e: Example = reader.read().unwrap();
+	assert!(matches!(e, Example { a: 42, b: true, c: 754187983 }));
+	# }
 	# {
 	# 	use endio::BERead;
 	# 	let mut reader = &b"\x2a\x01\x2c\xf3\xfe\xcf"[..];
 	# 	let e: Example = reader.read().unwrap();
-	#
-	# 	assert_eq!(e, Example { a: 42, b: true, c: 754187983 });
+	# 	assert!(matches!(e, Example { a: 42, b: true, c: 754187983 }));
 	# }
 	```
 
@@ -206,6 +356,14 @@ impl<E: Endianness, R: ERead<E>> Deserialize<E, R> for f64 where u64: Deserializ
 	}
 }
 
+impl<E: Endianness, R: Read> Deserialize<E, R> for Ipv4Addr {
+	fn deserialize(reader: &mut R) -> Res<Self> {
+		let mut buf = [0; 4];
+		reader.read_exact(&mut buf)?;
+		Ok(buf.into())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use std::io;
@@ -334,6 +492,26 @@ mod tests {
 			let mut reader = &data[..];
 			val = reader.read().unwrap();
 			assert_eq!(val, 1337.4199999955163);
+		}
+	}
+
+	#[test]
+	fn read_ipv4_addr() {
+		use std::net::Ipv4Addr;
+
+		let data = b"\x7f\x00\x00\x01";
+		let mut val: Ipv4Addr;
+		{
+			use crate::BERead;
+			let mut reader = &data[..];
+			val = reader.read().unwrap();
+			assert_eq!(val, Ipv4Addr::LOCALHOST);
+		}
+		{
+			use crate::LERead;
+			let mut reader = &data[..];
+			val = reader.read().unwrap();
+			assert_eq!(val, Ipv4Addr::LOCALHOST);
 		}
 	}
 

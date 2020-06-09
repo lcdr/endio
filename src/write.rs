@@ -8,7 +8,7 @@ use crate::{BigEndian, Endianness, LittleEndian, Serialize};
 
 	Interface for writing data with a specified endianness. Use this interface to make serializations automatically switch endianness without having to write the same code twice.
 
-	In theory this would be the only write trait and BE-/LEWrite would be aliases to the BE/LE type parameter variants, but for some reason that doesn't import methods in `use` notation.
+	In theory this would be the only write trait and BE-/LEWrite would be aliases to the BE/LE type parameter variants, but trait aliases aren't stable yet.
 
 	## Examples
 
@@ -23,7 +23,7 @@ use crate::{BigEndian, Endianness, LittleEndian, Serialize};
 	assert_eq!(writer, b"\x2a\x01\xcf\xfe\xf3\x2c");
 	```
 */
-pub trait EWrite<E: Endianness>: Sized {
+pub trait EWrite<E: Endianness>: Sized { // todo[supertrait item shadowing]: make Write a supertrait of this
 	/**
 		Writes a `Serialize` to the writer, in the writer's endianness.
 
@@ -35,6 +35,8 @@ pub trait EWrite<E: Endianness>: Sized {
 	/// Writes in forced little endian.
 	fn write_le<S: Serialize<LittleEndian, Self>>(&mut self, ser: S) -> Res<()> { ser.serialize(self) }
 }
+
+// todo[trait aliases]: make these aliases of EWrite
 
 /**
 	Use this to `write` in **big** endian.

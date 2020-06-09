@@ -23,7 +23,9 @@ pub struct LittleEndian;
 impl Endianness for BigEndian {}
 impl Endianness for LittleEndian {}
 
+/// Shorthand for `BigEndian`.
 pub type BE = BigEndian;
+/// Shorthand for `LittleEndian`.
 pub type LE = LittleEndian;
 
 // ensures no one else implements the trait
