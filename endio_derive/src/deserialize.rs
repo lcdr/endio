@@ -1,8 +1,10 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Fields, WhereClause};
+use syn::{parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Fields, LitInt, WhereClause};
 
-pub fn derive_deserialize(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+use crate::get_disc_padding;
+
+pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let mut input = parse_macro_input!(input as DeriveInput);
 	let where_generics = &mut input.generics.clone();
 	let mut where_clause = where_generics.make_where_clause();
@@ -18,7 +20,8 @@ pub fn derive_deserialize(input: proc_macro::TokenStream) -> proc_macro::TokenSt
 		Data::Enum(data) => {
 			let ty = crate::get_enum_type(&input);
 			add_where_clauses_enum(&mut where_clause, data, &ty);
-			deser_code = gen_deser_code_enum(data, &name, &ty);
+			let disc_padding = get_disc_padding(&input);
+			deser_code = gen_deser_code_enum(data, &name, &ty, &disc_padding);
 		}
 		Data::Union(_) => unimplemented!(),
 	};
@@ -99,7 +102,7 @@ fn add_where_clauses_enum(where_clause: &mut WhereClause, data: &DataEnum, ty: &
 	}
 }
 
-fn gen_deser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident) -> TokenStream {
+fn gen_deser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, padding: &Option<LitInt>) -> TokenStream {
 	let last_disc: syn::ExprLit = parse_quote! { 0 };
 	let mut last_disc = &last_disc.into();
 	let mut disc_offset = 0;
@@ -115,8 +118,16 @@ fn gen_deser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident) -> TokenStream
 		disc_offset += 1;
 		arms.push(arm);
 	}
+	let read_padding = match padding {
+		Some(x) => quote! {
+			let mut padding = [0; #x];
+			::std::io::Read::read_exact(reader, &mut padding)?;
+		},
+		None => quote! { },
+	};
 	quote! {
 		let disc: #ty = ::endio::ERead::read(reader)?;
+		#read_padding
 		Ok(match disc {
 			#(#arms)*
 			_ => return ::std::result::Result::Err(::std::io::Error::new(::std::io::ErrorKind::InvalidData, format!("invalid discriminant value for {}: {}", stringify!(#name), disc)))

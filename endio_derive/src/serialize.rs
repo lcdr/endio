@@ -1,8 +1,10 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
-use syn::{parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Fields, Generics, WhereClause};
+use syn::{parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Fields, LitInt, Generics, WhereClause};
 
-pub fn derive_serialize(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+use crate::get_disc_padding;
+
+pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let mut input = parse_macro_input!(input as DeriveInput);
 	let where_generics = &mut input.generics.clone();
 	let mut where_clause = where_generics.make_where_clause();
@@ -18,7 +20,8 @@ pub fn derive_serialize(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 		Data::Enum(data) => {
 			let ty = crate::get_enum_type(&input);
 			add_where_clauses_enum(&mut where_clause, data, &ty);
-			ser_code = gen_ser_code_enum(data, &name, &input.generics, &ty);
+			let disc_padding = get_disc_padding(&input);
+			ser_code = gen_ser_code_enum(data, &name, &ty, &disc_padding, &input.generics);
 		}
 		Data::Union(_) => unimplemented!(),
 	};
@@ -112,7 +115,7 @@ fn add_where_clauses_enum(where_clause: &mut WhereClause, data: &DataEnum, ty: &
 	}
 }
 
-fn gen_ser_code_enum(data: &DataEnum, name: &Ident, generics: &Generics, ty: &Ident) -> TokenStream {
+fn gen_ser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, padding: &Option<LitInt>, generics: &Generics) -> TokenStream {
 	let mut arms = vec![];
 	for f in &data.variants {
 		let ident = &f.ident;
@@ -120,9 +123,17 @@ fn gen_ser_code_enum(data: &DataEnum, name: &Ident, generics: &Generics, ty: &Id
 		let expanded = quote! { #name::#ident #ser_fields };
 		arms.push(expanded);
 	}
+	let write_padding = match padding {
+		Some(x) => quote! {
+			let mut padding = [0; #x];
+			::std::io::Write::write_all(writer, &padding)?;
+		},
+		None => quote! { },
+	};
 	quote! {
 		let disc = unsafe { *(self as *const #name #generics as *const #ty) };
 		::endio::EWrite::write(writer, disc)?;
+		#write_padding
 		match self {
 			#(#arms)*
 		}
