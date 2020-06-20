@@ -30,7 +30,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	// todo[hygiene]: replace __ENDIO_LIFETIME, __ENDIO_ENDIANNESS, __ENDIO_WRITER with unique ident
 	input.generics.params.push(parse_quote!('__ENDIO_LIFETIME));
 	input.generics.params.push(parse_quote!(__ENDIO_ENDIANNESS: ::endio::Endianness));
-	input.generics.params.push(parse_quote!(__ENDIO_WRITER: ::endio::EWrite<__ENDIO_ENDIANNESS>));
+	input.generics.params.push(parse_quote!(__ENDIO_WRITER: ::std::io::Write + ::endio::EWrite<__ENDIO_ENDIANNESS>));
 	let (impl_generics,	_, _) = input.generics.split_for_impl();
 
 	let expanded = quote! {

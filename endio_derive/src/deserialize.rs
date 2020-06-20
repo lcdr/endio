@@ -29,7 +29,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 	// todo[hygiene]: replace __ENDIO_ENDIANNESS, __ENDIO_READER with unique ident
 	input.generics.params.push(parse_quote!(__ENDIO_ENDIANNESS: ::endio::Endianness));
-	input.generics.params.push(parse_quote!(__ENDIO_READER: ::endio::ERead<__ENDIO_ENDIANNESS>));
+	input.generics.params.push(parse_quote!(__ENDIO_READER: ::std::io::Read + ::endio::ERead<__ENDIO_ENDIANNESS>));
 	let (impl_generics,	_, _) = input.generics.split_for_impl();
 
 	let expanded = quote! {
