@@ -2,7 +2,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Fields, LitInt, WhereClause};
 
-use crate::get_disc_padding;
+use crate::{get_post_disc_padding, get_field_padding};
 
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let mut input = parse_macro_input!(input as DeriveInput);
@@ -20,8 +20,8 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 		Data::Enum(data) => {
 			let ty = crate::get_enum_type(&input);
 			add_where_clauses_enum(&mut where_clause, data, &ty);
-			let disc_padding = get_disc_padding(&input);
-			deser_code = gen_deser_code_enum(data, &name, &ty, &disc_padding);
+			let post_disc_padding = get_post_disc_padding(&input);
+			deser_code = gen_deser_code_enum(data, &name, &ty, &post_disc_padding);
 		}
 		Data::Union(_) => unimplemented!(),
 	};
@@ -71,14 +71,36 @@ fn gen_deser_code_fields(fields: &Fields) -> TokenStream {
 			let mut deser = vec![];
 			for f in &fields.named {
 				let ident = &f.ident;
-				deser.push(quote! { #ident: ::endio::ERead::read(reader)?, });
+				let padding = get_field_padding(f);
+				let read_padding = match padding {
+					Some(x) => quote! {
+						let mut padding = [0; #x];
+						::std::io::Read::read_exact(reader, &mut padding)?;
+					},
+					None => quote! { },
+				};
+				deser.push(quote! { #ident: {
+					#read_padding
+					::endio::ERead::read(reader)?
+				}, });
 			}
 			quote! { { #(#deser)* } }
 		}
 		Fields::Unnamed(fields) => {
 			let mut deser = vec![];
-			for _ in &fields.unnamed {
-				deser.push(quote! { ::endio::ERead::read(reader)?, });
+			for f in &fields.unnamed {
+				let padding = get_field_padding(f);
+				let read_padding = match padding {
+					Some(x) => quote! {
+						let mut padding = [0; #x];
+						::std::io::Read::read_exact(reader, &mut padding)?;
+					},
+					None => quote! { },
+				};
+				deser.push(quote! { {
+					#read_padding
+					::endio::ERead::read(reader)?
+				}, });
 			}
 			quote! { ( #(#deser)* ) }
 		}
@@ -102,7 +124,7 @@ fn add_where_clauses_enum(where_clause: &mut WhereClause, data: &DataEnum, ty: &
 	}
 }
 
-fn gen_deser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, padding: &Option<LitInt>) -> TokenStream {
+fn gen_deser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, post_disc_padding: &Option<LitInt>) -> TokenStream {
 	let last_disc: syn::ExprLit = parse_quote! { 0 };
 	let mut last_disc = &last_disc.into();
 	let mut disc_offset = 0;
@@ -118,7 +140,7 @@ fn gen_deser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, padding: &Opti
 		disc_offset += 1;
 		arms.push(arm);
 	}
-	let read_padding = match padding {
+	let read_padding = match post_disc_padding {
 		Some(x) => quote! {
 			let mut padding = [0; #x];
 			::std::io::Read::read_exact(reader, &mut padding)?;

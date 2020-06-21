@@ -151,6 +151,32 @@ use crate::{BEWrite, BigEndian, Endianness, EWrite, LEWrite, LittleEndian};
 	# }
 	```
 
+	### Padding
+
+	Sometimes you'll have to work with formats containing padding bytes of useless data, or you know that the recipient will ignore some parts. You can add the `#[padding=n]` attribute to fields to specify n bytes of padding before the field, or the `#[post_disc_padding=n]` attribute on an enum to specify n bytes of padding after the discriminant. The derive macro will then automatically write zeros for these bytes.
+
+	```
+	# #[cfg(feature="derive")] {
+	# use endio::Serialize;
+	#[derive(Serialize)]
+	#[repr(u16)]
+	#[post_disc_padding=3]
+	enum Example {
+		A {
+			a: u16,
+			#[padding=1]
+			b: bool,
+			#[padding=1]
+			c: u32,
+		},
+	}
+	use endio::LEWrite;
+	let mut writer = vec![];
+	writer.write(&Example::A { a: 0xadba, b: true, c: 0x0df0adba }).unwrap();
+	assert_eq!(writer, b"\x00\x00\x00\x00\x00\xba\xad\x00\x01\x00\xba\xad\xf0\x0d");
+	# }
+	```
+
 	## Custom serializations
 
 	If your serialization is complex or has special cases, you'll need to implement `Serialize` manually.

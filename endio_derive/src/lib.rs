@@ -3,14 +3,14 @@ mod serialize;
 
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
-use syn::{DeriveInput, Lit, LitInt, Meta, NestedMeta};
+use syn::{Attribute, DeriveInput, Field, Lit, LitInt, Meta, NestedMeta};
 
-#[proc_macro_derive(Deserialize, attributes(disc_padding))]
+#[proc_macro_derive(Deserialize, attributes(post_disc_padding, padding))]
 pub fn derive_deserialize(input: TokenStream) -> TokenStream {
 	deserialize::derive(input)
 }
 
-#[proc_macro_derive(Serialize, attributes(disc_padding))]
+#[proc_macro_derive(Serialize, attributes(post_disc_padding, padding))]
 pub fn derive_serialize(input: TokenStream) -> TokenStream {
 	serialize::derive(input)
 }
@@ -49,24 +49,32 @@ fn get_enum_type(input: &DeriveInput) -> Ident {
 	panic!("You need to add a repr attribute to specify the discriminant type, e.g. #[repr(u16)]");
 }
 
-fn get_disc_padding(input: &DeriveInput) -> Option<LitInt> {
-	for attr in &input.attrs {
-		if !attr.path.is_ident("disc_padding") {
+fn get_padding(attrs: &Vec<Attribute>, attr_name: &str) -> Option<LitInt> {
+	for attr in attrs {
+		if !attr.path.is_ident(attr_name) {
 			continue;
 		}
 		let meta = match attr.parse_meta() {
-			Err(_) => panic!("encountered unparseable disc_padding attribute"),
+			Err(_) => panic!("encountered unparseable {} attribute", attr_name),
 			Ok(x) => x,
 		};
 		let lit = match meta {
 			Meta::NameValue(x) => x.lit,
-			_ => panic!("disc_padding needs to be name=value"),
+			_ => panic!("{} needs to be name=value", attr_name),
 		};
 		let int_lit = match lit {
 			Lit::Int(x) => x,
-			_ => panic!("disc_padding needs to be an integer"),
+			_ => panic!("{} needs to be an integer", attr_name),
 		};
 		return Some(int_lit);
 	}
 	None
+}
+
+fn get_post_disc_padding(input: &DeriveInput) -> Option<LitInt> {
+	get_padding(&input.attrs, "post_disc_padding")
+}
+
+fn get_field_padding(input: &Field) -> Option<LitInt> {
+	get_padding(&input.attrs, "padding")
 }
