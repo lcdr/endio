@@ -159,7 +159,13 @@ use crate::{BigEndian, ERead, Endianness, LittleEndian};
 
 	### Padding
 
-	Sometimes you'll have to work with formats containing padding bytes of useless data, or you want to ignore some parts you won't use. You can add the `#[padding=n]` attribute to fields to specify n bytes of padding before the field, or the `#[post_disc_padding=n]` attribute on an enum to specify n bytes of padding after the discriminant. The derive macro will then automatically skip these bytes when reading.
+	Sometimes you'll have to work with formats containing padding bytes of useless data, or you want to ignore some parts you won't use. This derive macro provides some attributes to support these cases:
+
+	- Add the `#[padding=n]` attribute to fields to specify `n` bytes of padding before the field.
+	- Add the `#[post_disc_padding=n]` attribute on an enum to specify `n` bytes of padding after the discriminant.
+	- Add the `#[trailing_padding=n]` attribute on a struct or enum to specify `n` bytes of padding after the struct/enum.
+
+	The derive macro will then automatically skip these bytes when reading.
 
 	```
 	# #[cfg(feature="derive")] {
@@ -167,6 +173,7 @@ use crate::{BigEndian, ERead, Endianness, LittleEndian};
 	#[derive(Deserialize)]
 	#[repr(u16)]
 	#[post_disc_padding=3]
+	#[trailing_padding=1]
 	enum Example {
 		A {
 			a: u16,
@@ -177,7 +184,7 @@ use crate::{BigEndian, ERead, Endianness, LittleEndian};
 		},
 	}
 	use endio::LERead;
-	let mut reader = &b"\x00\x00\xff\xff\xff\xba\xad\xff\x01\xff\xba\xad\xf0\x0d"[..];
+	let mut reader = &b"\x00\x00\xff\xff\xff\xba\xad\xff\x01\xff\xba\xad\xf0\x0d\xff"[..];
 	let val: Example = reader.read().unwrap();
 	assert!(matches!(val, Example::A { a: 0xadba, b: true, c: 0x0df0adba }));
 	# }

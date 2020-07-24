@@ -2,7 +2,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Fields, LitInt, Generics, WhereClause};
 
-use crate::{get_post_disc_padding, get_field_padding};
+use crate::{get_field_padding, get_post_disc_padding, get_trailing_padding};
 
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let mut input = parse_macro_input!(input as DeriveInput);
@@ -25,6 +25,16 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 		}
 		Data::Union(_) => unimplemented!(),
 	};
+
+	let trailing_padding = get_trailing_padding(&input);
+	let write_padding = match trailing_padding {
+		Some(x) => quote! {
+			let mut padding = [0; #x];
+			::std::io::Write::write_all(writer, &padding)?;
+		},
+		None => quote! { },
+	};
+
 	let (_, ty_generics, where_clause) = where_generics.split_for_impl();
 
 	// todo[hygiene]: replace __ENDIO_LIFETIME, __ENDIO_ENDIANNESS, __ENDIO_WRITER with unique ident
@@ -37,6 +47,8 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 		impl #impl_generics ::endio::Serialize<__ENDIO_ENDIANNESS, __ENDIO_WRITER> for &'__ENDIO_LIFETIME #name #ty_generics #where_clause {
 			fn serialize(self, writer: &mut __ENDIO_WRITER) -> ::std::io::Result<()> {
 				#ser_code
+				#write_padding
+				Ok(())
 			}
 		}
 	};
@@ -124,7 +136,6 @@ fn gen_ser_code_struct(fields: &Fields, name: &Ident) -> TokenStream {
 		match self {
 			#name #ser_code
 		}
-		Ok(())
 	}
 }
 
@@ -159,6 +170,5 @@ fn gen_ser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, post_disc_paddin
 		match self {
 			#(#arms)*
 		}
-		Ok(())
 	}
 }

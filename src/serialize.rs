@@ -153,7 +153,13 @@ use crate::{BEWrite, BigEndian, Endianness, EWrite, LEWrite, LittleEndian};
 
 	### Padding
 
-	Sometimes you'll have to work with formats containing padding bytes of useless data, or you know that the recipient will ignore some parts. You can add the `#[padding=n]` attribute to fields to specify n bytes of padding before the field, or the `#[post_disc_padding=n]` attribute on an enum to specify n bytes of padding after the discriminant. The derive macro will then automatically write zeros for these bytes.
+	Sometimes you'll have to work with formats containing padding bytes of useless data, or you know that the recipient will ignore some parts. This derive macro provides some attributes to support these cases:
+
+	- Add the `#[padding=n]` attribute to fields to specify `n` bytes of padding before the field.
+	- Add the `#[post_disc_padding=n]` attribute on an enum to specify `n` bytes of padding after the discriminant.
+	- Add the `#[trailing_padding=n]` attribute on a struct or enum to specify `n` bytes of padding after the struct/enum.
+
+	The derive macro will then automatically write zeros for these bytes.
 
 	```
 	# #[cfg(feature="derive")] {
@@ -161,6 +167,7 @@ use crate::{BEWrite, BigEndian, Endianness, EWrite, LEWrite, LittleEndian};
 	#[derive(Serialize)]
 	#[repr(u16)]
 	#[post_disc_padding=3]
+	#[trailing_padding=1]
 	enum Example {
 		A {
 			a: u16,
@@ -173,7 +180,7 @@ use crate::{BEWrite, BigEndian, Endianness, EWrite, LEWrite, LittleEndian};
 	use endio::LEWrite;
 	let mut writer = vec![];
 	writer.write(&Example::A { a: 0xadba, b: true, c: 0x0df0adba }).unwrap();
-	assert_eq!(writer, b"\x00\x00\x00\x00\x00\xba\xad\x00\x01\x00\xba\xad\xf0\x0d");
+	assert_eq!(writer, b"\x00\x00\x00\x00\x00\xba\xad\x00\x01\x00\xba\xad\xf0\x0d\x00");
 	# }
 	```
 

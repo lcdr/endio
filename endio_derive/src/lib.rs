@@ -5,12 +5,12 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use syn::{Attribute, DeriveInput, Field, Lit, LitInt, Meta, NestedMeta};
 
-#[proc_macro_derive(Deserialize, attributes(post_disc_padding, padding))]
+#[proc_macro_derive(Deserialize, attributes(post_disc_padding, padding, trailing_padding))]
 pub fn derive_deserialize(input: TokenStream) -> TokenStream {
 	deserialize::derive(input)
 }
 
-#[proc_macro_derive(Serialize, attributes(post_disc_padding, padding))]
+#[proc_macro_derive(Serialize, attributes(post_disc_padding, padding, trailing_padding))]
 pub fn derive_serialize(input: TokenStream) -> TokenStream {
 	serialize::derive(input)
 }
@@ -71,10 +71,14 @@ fn get_padding(attrs: &Vec<Attribute>, attr_name: &str) -> Option<LitInt> {
 	None
 }
 
+fn get_field_padding(input: &Field) -> Option<LitInt> {
+	get_padding(&input.attrs, "padding")
+}
+
 fn get_post_disc_padding(input: &DeriveInput) -> Option<LitInt> {
 	get_padding(&input.attrs, "post_disc_padding")
 }
 
-fn get_field_padding(input: &Field) -> Option<LitInt> {
-	get_padding(&input.attrs, "padding")
+fn get_trailing_padding(input: &DeriveInput) -> Option<LitInt> {
+	get_padding(&input.attrs, "trailing_padding")
 }
