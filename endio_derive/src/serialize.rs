@@ -2,7 +2,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::{parse_macro_input, parse_quote, Data, DataEnum, DeriveInput, Fields, LitInt, Generics, WhereClause};
 
-use crate::{get_field_padding, get_post_disc_padding, get_trailing_padding};
+use crate::{get_field_padding, get_pre_disc_padding, get_post_disc_padding, get_trailing_padding};
 
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	let mut input = parse_macro_input!(input as DeriveInput);
@@ -20,20 +20,15 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 		Data::Enum(data) => {
 			let ty = crate::get_enum_type(&input);
 			add_where_clauses_enum(&mut where_clause, data, &ty);
+			let pre_disc_padding = get_pre_disc_padding(&input);
 			let post_disc_padding = get_post_disc_padding(&input);
-			ser_code = gen_ser_code_enum(data, &name, &ty, &post_disc_padding, &input.generics);
+			ser_code = gen_ser_code_enum(data, &name, &ty, &pre_disc_padding, &post_disc_padding, &input.generics);
 		}
 		Data::Union(_) => unimplemented!(),
 	};
 
 	let trailing_padding = get_trailing_padding(&input);
-	let write_padding = match trailing_padding {
-		Some(x) => quote! {
-			let mut padding = [0; #x];
-			::std::io::Write::write_all(writer, &padding)?;
-		},
-		None => quote! { },
-	};
+	let write_padding = gen_write_padding(&trailing_padding);
 
 	let (_, ty_generics, where_clause) = where_generics.split_for_impl();
 
@@ -86,13 +81,7 @@ fn gen_ser_code_fields(fields: &Fields) -> TokenStream {
 			for f in &fields.named {
 				let ident = &f.ident;
 				let padding = get_field_padding(f);
-				let write_padding = match padding {
-					Some(x) => quote! {
-						let mut padding = [0; #x];
-						::std::io::Write::write_all(writer, &padding)?;
-					},
-					None => quote! { },
-				};
+				let write_padding = gen_write_padding(&padding);
 				pat.push(quote! { #ident, });
 				ser.push(quote! {
 					#write_padding
@@ -108,13 +97,7 @@ fn gen_ser_code_fields(fields: &Fields) -> TokenStream {
 			for f in &fields.unnamed {
 				let ident = Ident::new(&index, Span::call_site());
 				let padding = get_field_padding(f);
-				let write_padding = match padding {
-					Some(x) => quote! {
-						let mut padding = [0; #x];
-						::std::io::Write::write_all(writer, &padding)?;
-					},
-					None => quote! { },
-				};
+				let write_padding = gen_write_padding(&padding);
 				pat.push(quote! { #ident, });
 				ser.push(quote! {
 					#write_padding
@@ -148,7 +131,7 @@ fn add_where_clauses_enum(where_clause: &mut WhereClause, data: &DataEnum, ty: &
 	}
 }
 
-fn gen_ser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, post_disc_padding: &Option<LitInt>, generics: &Generics) -> TokenStream {
+fn gen_ser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, pre_disc_padding: &Option<LitInt>, post_disc_padding: &Option<LitInt>, generics: &Generics) -> TokenStream {
 	let mut arms = vec![];
 	for f in &data.variants {
 		let ident = &f.ident;
@@ -156,19 +139,25 @@ fn gen_ser_code_enum(data: &DataEnum, name: &Ident, ty: &Ident, post_disc_paddin
 		let expanded = quote! { #name::#ident #ser_fields };
 		arms.push(expanded);
 	}
-	let write_padding = match post_disc_padding {
+	let write_pre_padding = gen_write_padding(pre_disc_padding);
+	let write_post_padding = gen_write_padding(post_disc_padding);
+	quote! {
+		#write_pre_padding
+		let disc = unsafe { *(self as *const #name #generics as *const #ty) };
+		::endio::EWrite::write(writer, disc)?;
+		#write_post_padding
+		match self {
+			#(#arms)*
+		}
+	}
+}
+
+fn gen_write_padding(padding: &Option<LitInt>) -> TokenStream {
+	match padding {
 		Some(x) => quote! {
 			let mut padding = [0; #x];
 			::std::io::Write::write_all(writer, &padding)?;
 		},
 		None => quote! { },
-	};
-	quote! {
-		let disc = unsafe { *(self as *const #name #generics as *const #ty) };
-		::endio::EWrite::write(writer, disc)?;
-		#write_padding
-		match self {
-			#(#arms)*
-		}
 	}
 }
