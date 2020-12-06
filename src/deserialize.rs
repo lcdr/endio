@@ -399,6 +399,18 @@ impl<E: Endianness, R: Read> Deserialize<E, R> for Ipv4Addr {
 	}
 }
 
+/// Reads an `Option<T>` by reading a bool, and if it is `true`, reads `T`.
+impl<E: Endianness, R: ERead<E>, T: Deserialize<E, R>> Deserialize<E, R> for Option<T> where bool: Deserialize<E, R> {
+	fn deserialize(reader: &mut R) -> Res<Self> {
+		let is_some: bool = reader.read()?;
+		Ok(if is_some {
+			Some(reader.read()?)
+		} else {
+			None
+		})
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use std::io;
@@ -548,6 +560,26 @@ mod tests {
 			val = reader.read().unwrap();
 			assert_eq!(val, Ipv4Addr::LOCALHOST);
 		}
+	}
+
+	#[test]
+	fn read_option_none() {
+		let data = b"\x00";
+		let val: Option<u16>;
+		use crate::LERead;
+		let mut reader = &data[..];
+		val = reader.read().unwrap();
+		assert_eq!(val, None);
+	}
+
+	#[test]
+	fn read_option_some() {
+		let data = b"\x01\x2a\x00";
+		let val: Option<u16>;
+		use crate::LERead;
+		let mut reader = &data[..];
+		val = reader.read().unwrap();
+		assert_eq!(val, Some(0x002a));
 	}
 
 	#[test]
